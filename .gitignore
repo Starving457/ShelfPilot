@@ -19,3 +19,4 @@ htmlcov/
 # System
 .DS_Store
 Thumbs.db
+*.db
