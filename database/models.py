@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, Integer, String, ForeignKey
 from database.db import Base
 
 
@@ -9,3 +9,13 @@ class Product(Base):
     code = Column(String)
     name = Column(String)
     quantity = Column(Integer)
+    location_id = Column(Integer, ForeignKey("locations.id"))
+
+
+class Location(Base):
+    __tablename__ = "locations"
+
+    id = Column(Integer, primary_key=True)
+    code = Column(String, unique=True)
+    rack = Column(String)
+    shelf = Column(String)
