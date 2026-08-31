@@ -11,7 +11,7 @@ __pycache__/
 # Environment variables
 .env
 
-# Testy i raporty
+# Test & reports
 .pytest_cache/
 .coverage
 htmlcov/
