@@ -1,11 +1,16 @@
 from database.db import SessionLocal
-from database.models import Product, Location
+from services.location_service import (
+    find_product,
+    find_location_by_id,
+    assign_new_location,
+    update_location,
+    remove_location,
+)
 
 session = SessionLocal()
 
 code_to_find = input("Podaj kod produktu: ")
-
-product = session.query(Product).filter(Product.code == code_to_find).first()
+product = find_product(session, code_to_find)
 
 if product is None:
     print("Nie znaleziono produktu o takim kodzie.")
@@ -23,27 +28,21 @@ else:
                 print("Anulowano - lokalizacja nie została przypisana.")
                 break
 
-            location = session.query(Location).filter(Location.code == location_code).first()
-
-            if location is None:
-                print(f"Nie ma takiej lokalizacji: {location_code}. Spróbuj ponownie.")
-            else:
-                product.location_id = location.id
-                session.commit()
-                print(f"Przypisano lokalizację {location.code} do produktu {product.name}")
+            if assign_new_location(session, product, location_code):
+                print(f"Przypisano lokalizację {location_code} do produktu {product.name}")
                 break
+            else:
+                print(f"Nie ma takiej lokalizacji: {location_code}. Spróbuj ponownie.")
 
     else:
         # --- READ (zawsze pokazujemy obecną lokalizację) ---
-        current_location = session.query(Location).filter(Location.id == product.location_id).first()
+        current_location = find_location_by_id(session, product.location_id)
         print(f"Obecna lokalizacja: {current_location.code}")
 
-        # Dopiero TERAZ pytamy, co dalej - z opcją "nic"
         action = input("Co chcesz zrobić? [P]rzypisz nową / [U]suń / Enter = nic: ")
 
         if action.upper() == "U":
-            product.location_id = None
-            session.commit()
+            remove_location(session, product)
             print(f"Usunięto przypisanie lokalizacji dla produktu {product.name}")
         elif action.upper() == "P":
             while True:
@@ -53,17 +52,12 @@ else:
                     print("Anulowano - lokalizacja nie została zmieniona.")
                     break
 
-                new_location = session.query(Location).filter(Location.code == new_location_code).first()
-
-                if new_location is None:
-                    print(f"Nie ma takiej lokalizacji: {new_location_code}. Spróbuj ponownie.")
-                else:
-                    product.location_id = new_location.id
-                    session.commit()
-                    print(f"Zmieniono lokalizację na {new_location.code}")
+                if update_location(session, product, new_location_code):
+                    print(f"Zmieniono lokalizację na {new_location_code}")
                     break
+                else:
+                    print(f"Nie ma takiej lokalizacji: {new_location_code}. Spróbuj ponownie.")
         elif action == "":
-            # Użytkownik nacisnął samo Enter - nic nie robimy
             print(f"Nic nie zmieniono, obecna lokalizacja to: {current_location.code}")
         else:
             print("Nieznana opcja - wybierz P lub U.")
