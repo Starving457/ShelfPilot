@@ -7,6 +7,7 @@ class Product(Base):
 
     id = Column(Integer, primary_key=True)
     code = Column(String)
+    ean = Column(String)
     name = Column(String)
     quantity = Column(Integer)
     location_id = Column(Integer, ForeignKey("locations.id"))
