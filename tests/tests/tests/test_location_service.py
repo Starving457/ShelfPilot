@@ -1,5 +1,11 @@
-from database.models import Product
-from services.location_service import find_product
+from database.models import Product, Location
+from services.location_service import (
+    find_product,
+    find_location,
+    assign_new_location,
+    update_location,
+    remove_location,
+)
 
 
 def test_find_product_gdy_istnieje(session):
@@ -17,3 +23,89 @@ def test_find_product_gdy_nie_istnieje(session):
     wynik = find_product(session, "NIEISTNIEJACY_KOD")
 
     assert wynik is None
+
+def test_find_location_gdy_istnieje(session):
+    lokalizacja = Location(code="A1", rack="A", shelf="1")
+    session.add(lokalizacja)
+    session.commit()
+
+    wynik = find_location(session, "A1")
+
+    assert wynik is not None
+    assert wynik.rack == "A"
+    assert wynik.shelf == "1"
+
+def test_find_location_gdy_nie_istnieje(session):
+    wynik = find_location(session, "NIEISTNIEJACA")
+
+    assert wynik is None
+
+def test_assign_new_location_sukces(session):
+    produkt = Product(code="TEST123", name="Testowa Śruba", quantity=5)
+    lokalizacja = Location(code="A1", rack="A", shelf="1")
+    session.add(produkt)
+    session.add(lokalizacja)
+    session.commit()
+
+    wynik = assign_new_location(session, produkt, "A1")
+
+    assert wynik is True
+    assert produkt.location_id == lokalizacja.id
+
+
+def test_assign_new_location_nieistniejaca_lokalizacja(session):
+    produkt = Product(code="TEST123", name="Testowa Śruba", quantity=5)
+    session.add(produkt)
+    session.commit()
+
+    wynik = assign_new_location(session, produkt, "NIEISTNIEJACA")
+
+    assert wynik is False
+    assert produkt.location_id is None
+
+def test_update_location_sukces(session):
+    produkt = Product(code="TEST123", name="Testowa Śruba", quantity=5)
+    lokalizacja_a1 = Location(code="A1", rack="A", shelf="1")
+    lokalizacja_a2 = Location(code="A2", rack="A", shelf="2")
+    session.add(produkt)
+    session.add(lokalizacja_a1)
+    session.add(lokalizacja_a2)
+    session.commit()
+
+    produkt.location_id = lokalizacja_a1.id
+    session.commit()
+
+    wynik = update_location(session, produkt, "A2")
+
+    assert wynik is True
+    assert produkt.location_id == lokalizacja_a2.id
+
+
+def test_update_location_nieistniejaca_lokalizacja(session):
+    produkt = Product(code="TEST123", name="Testowa Śruba", quantity=5)
+    lokalizacja_a1 = Location(code="A1", rack="A", shelf="1")
+    session.add(produkt)
+    session.add(lokalizacja_a1)
+    session.commit()
+
+    produkt.location_id = lokalizacja_a1.id
+    session.commit()
+
+    wynik = update_location(session, produkt, "NIEISTNIEJACA")
+
+    assert wynik is False
+    assert produkt.location_id == lokalizacja_a1.id
+
+def test_remove_location(session):
+    produkt = Product(code="TEST123", name="Testowa Śruba", quantity=5)
+    lokalizacja = Location(code="A1", rack="A", shelf="1")
+    session.add(produkt)
+    session.add(lokalizacja)
+    session.commit()
+
+    produkt.location_id = lokalizacja.id
+    session.commit()
+
+    remove_location(session, produkt)
+
+    assert produkt.location_id is None
