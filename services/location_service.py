@@ -44,3 +44,12 @@ def remove_location(session, product):
     """Usuwa przypisanie lokalizacji dla produktu (produkt zostaje, tylko lokalizacja się czyści)."""
     product.location_id = None
     session.commit()
+
+def find_products_by_location(session, location_code):
+    """Zwraca listę produktów przypisanych do danej lokalizacji. Zwraca pustą listę, jeśli lokalizacja nie istnieje albo jest pusta."""
+    location = find_location(session, location_code)
+
+    if location is None:
+        return []
+
+    return session.query(Product).filter(Product.location_id == location.id).all()

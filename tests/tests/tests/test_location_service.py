@@ -5,6 +5,7 @@ from services.location_service import (
     assign_new_location,
     update_location,
     remove_location,
+    find_products_by_location,
 )
 
 
@@ -109,3 +110,29 @@ def test_remove_location(session):
     remove_location(session, produkt)
 
     assert produkt.location_id is None
+
+def test_find_products_by_location_z_produktami(session):
+    lokalizacja = Location(code="A1", rack="A", shelf="1")
+    produkt1 = Product(code="ABC123", name="Śruba", quantity=5)
+    produkt2 = Product(code="XYZ789", name="Nakrętka", quantity=10)
+    produkt_na_innej_polce = Product(code="QQQ111", name="Młotek", quantity=2)
+
+    session.add_all([lokalizacja, produkt1, produkt2, produkt_na_innej_polce])
+    session.commit()
+
+    produkt1.location_id = lokalizacja.id
+    produkt2.location_id = lokalizacja.id
+    session.commit()
+
+    wyniki = find_products_by_location(session, "A1")
+
+    assert len(wyniki) == 2
+    kody = [p.code for p in wyniki]
+    assert "ABC123" in kody
+    assert "XYZ789" in kody
+
+
+def test_find_products_by_location_pusta_lub_nieistniejaca(session):
+    wyniki = find_products_by_location(session, "NIEISTNIEJACA")
+
+    assert wyniki == []
