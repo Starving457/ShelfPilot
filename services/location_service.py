@@ -1,4 +1,4 @@
-from database.models import Product, Location
+from database.models import Product, Location, ProductLocation
 
 
 def find_location(session, code):
@@ -11,45 +11,97 @@ def find_product(session, code):
     return session.query(Product).filter(Product.code == code).first()
 
 
-def find_location_by_id(session, location_id):
-    """Szuka lokalizacji w bazie po jej id. Zwraca obiekt Location albo None."""
-    return session.query(Location).filter(Location.id == location_id).first()
+def _find_link(session, product, location):
+    """Pomocnicza: szuka wpisu 'produkt leży na półce'. Zwraca ProductLocation albo None."""
+    return (
+        session.query(ProductLocation)
+        .filter(
+            ProductLocation.product_id == product.id,
+            ProductLocation.location_id == location.id,
+        )
+        .first()
+    )
 
 
-def assign_new_location(session, product, location_code):
-    """Przypisuje lokalizację do produktu, który jej jeszcze nie ma. Zwraca True jeśli się udało, False jeśli lokalizacja nie istnieje."""
-    location = find_location(session, location_code)
+def get_product_locations(session, product):
+    """Zwraca listę lokalizacji (obiektów Location), na których leży produkt.
+    Pusta lista, jeśli produkt nie jest nigdzie przypisany."""
+    return (
+        session.query(Location)
+        .join(ProductLocation, ProductLocation.location_id == Location.id)
+        .filter(ProductLocation.product_id == product.id)
+        .all()
+    )
 
-    if location is None:
-        return False
-
-    product.location_id = location.id
-    session.commit()
-    return True
-
-
-def update_location(session, product, new_location_code):
-    """Zmienia lokalizację produktu na nową. Zwraca True jeśli się udało, False jeśli nowa lokalizacja nie istnieje."""
-    new_location = find_location(session, new_location_code)
-
-    if new_location is None:
-        return False
-
-    product.location_id = new_location.id
-    session.commit()
-    return True
-
-
-def remove_location(session, product):
-    """Usuwa przypisanie lokalizacji dla produktu (produkt zostaje, tylko lokalizacja się czyści)."""
-    product.location_id = None
-    session.commit()
 
 def find_products_by_location(session, location_code):
-    """Zwraca listę produktów przypisanych do danej lokalizacji. Zwraca pustą listę, jeśli lokalizacja nie istnieje albo jest pusta."""
+    """Zwraca listę produktów leżących na danej półce.
+    Pusta lista, jeśli półka nie istnieje albo nic na niej nie leży."""
     location = find_location(session, location_code)
 
     if location is None:
         return []
 
-    return session.query(Product).filter(Product.location_id == location.id).all()
+    return (
+        session.query(Product)
+        .join(ProductLocation, ProductLocation.product_id == Product.id)
+        .filter(ProductLocation.location_id == location.id)
+        .all()
+    )
+
+
+def add_product_to_location(session, product, location_code):
+    """Dodaje produkt na podaną półkę.
+    Zwraca: "ok", "location_not_found" albo "already_assigned"."""
+    location = find_location(session, location_code)
+
+    if location is None:
+        return "location_not_found"
+
+    if _find_link(session, product, location) is not None:
+        return "already_assigned"
+
+    session.add(ProductLocation(product_id=product.id, location_id=location.id))
+    session.commit()
+    return "ok"
+
+
+def remove_product_from_location(session, product, location_code):
+    """Usuwa przypisanie produktu do półki (sam produkt zostaje w bazie).
+    Zwraca: "ok", "location_not_found" albo "not_assigned"."""
+    location = find_location(session, location_code)
+
+    if location is None:
+        return "location_not_found"
+
+    link = _find_link(session, product, location)
+
+    if link is None:
+        return "not_assigned"
+
+    session.delete(link)
+    session.commit()
+    return "ok"
+
+
+def move_product_location(session, product, from_code, to_code):
+    """Przenosi produkt z jednej półki na drugą.
+    Zwraca: "ok", "location_not_found", "not_assigned" (produkt nie leży na półce
+    źródłowej) albo "already_assigned" (produkt już leży na docelowej)."""
+    from_location = find_location(session, from_code)
+    to_location = find_location(session, to_code)
+
+    if from_location is None or to_location is None:
+        return "location_not_found"
+
+    link = _find_link(session, product, from_location)
+
+    if link is None:
+        return "not_assigned"
+
+    if _find_link(session, product, to_location) is not None:
+        return "already_assigned"
+
+    link.location_id = to_location.id
+    session.commit()
+    return "ok"

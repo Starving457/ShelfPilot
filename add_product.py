@@ -8,7 +8,7 @@ ean = input("Podaj EAN: ")
 name = input("Podaj nazwę produktu: ")
 quantity = int(input("Podaj ilość: "))
 
-new_product = Product(code=code, ean=ean, name=name, quantity=quantity)
+new_product = Product(code=code, ean=ean, name=name, wapro_quantity=quantity)
 
 session.add(new_product)
 session.commit()
