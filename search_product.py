@@ -1,20 +1,26 @@
 from database.db import SessionLocal
 from services.product_service import search_products
+from services.location_service import get_product_locations
 
 session = SessionLocal()
 
-search_term = input("Wpisz kod, EAN lub fragment nazwy produktu: ")
+while True:
+    term = input("\nSzukaj po kodzie, EAN lub nazwie (Enter, by zakończyć): ")
+    if term == "":
+        break
 
-results = search_products(session, search_term)
+    results = search_products(session, term)
 
-if not results:
-    print("Nie znaleziono żadnego produktu.")
-elif len(results) == 1:
-    product = results[0]
-    print(f"Znaleziono: {product.name} (kod produktu: {product.code}, EAN: {product.ean}, ilość: {product.quantity})")
-else:
-    print(f"Znaleziono {len(results)} pasujących produktów:")
+    if not results:
+        print("Nic nie znaleziono.")
+        continue
+
     for product in results:
-        print(f"- {product.name} (kod produktu: {product.code}, EAN: {product.ean}, ilość: {product.quantity})")
+        locations = get_product_locations(session, product)
+        if locations:
+            kody = ", ".join(loc.code for loc in locations)
+        else:
+            kody = "brak lokalizacji"
+        print(f"{product.code} | {product.name} | {kody}")
 
 session.close()

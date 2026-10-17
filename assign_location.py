@@ -1,71 +1,74 @@
 from database.db import SessionLocal
 from services.location_service import (
     find_product,
-    find_location_by_id,
-    assign_new_location,
-    update_location,
-    remove_location,
+    get_product_locations,
+    add_product_to_location,
+    remove_product_from_location,
+    move_product_location,
 )
+
+# Komunikaty dla statusów zwracanych przez services
+KOMUNIKATY = {
+    "ok": "Gotowe.",
+    "location_not_found": "Nie ma takiej lokalizacji.",
+    "already_assigned": "Produkt jest już na tej lokalizacji.",
+    "not_assigned": "Produkt nie jest przypisany do tej lokalizacji.",
+}
+
+
+def pokaz_lokalizacje(session, product):
+    """Wypisuje wszystkie półki, na których leży produkt."""
+    locations = get_product_locations(session, product)
+    if not locations:
+        print("Ten produkt nie ma jeszcze żadnej lokalizacji.")
+    else:
+        kody = ", ".join(loc.code for loc in locations)
+        print(f"Obecne lokalizacje: {kody}")
+
 
 session = SessionLocal()
 
 while True:
-    code_to_find = input("Podaj kod produktu (Enter, by zakończyć): ")
-
-    if code_to_find == "":
-        print("Do zobaczenia!")
+    code = input("\nPodaj kod produktu (Enter, by zakończyć): ")
+    if code == "":
         break
 
-    product = find_product(session, code_to_find)
-
+    product = find_product(session, code)
     if product is None:
         print("Nie znaleziono produktu o takim kodzie.")
+        continue
+
+    print(f"Znaleziono: {product.name}")
+    pokaz_lokalizacje(session, product)
+
+    action = input("Co chcesz zrobić? [D]odaj / [P]rzenieś / [U]suń / Enter = nic: ").upper()
+
+    if action == "":
+        print("Nic nie zmieniono.")
+
+    elif action == "D":
+        new_code = input("Kod lokalizacji do dodania (Enter, by anulować): ")
+        if new_code != "":
+            status = add_product_to_location(session, product, new_code)
+            print(KOMUNIKATY[status])
+
+    elif action == "P":
+        from_code = input("Z której lokalizacji przenieść (Enter, by anulować): ")
+        if from_code != "":
+            to_code = input("Na którą lokalizację (Enter, by anulować): ")
+            if to_code != "":
+                status = move_product_location(session, product, from_code, to_code)
+                print(KOMUNIKATY[status])
+
+    elif action == "U":
+        del_code = input("Z której lokalizacji usunąć (Enter, by anulować): ")
+        if del_code != "":
+            status = remove_product_from_location(session, product, del_code)
+            print(KOMUNIKATY[status])
+
     else:
-        print(f"Znaleziono: {product.name}")
+        print("Nieznana opcja - wybierz D, P lub U.")
 
-        if product.location_id is None:
-            # --- CREATE ---
-            print("Ten produkt nie ma jeszcze przypisanej lokalizacji.")
-
-            while True:
-                location_code = input("Podaj lokalizację dla tego produktu (Enter, by anulować): ")
-
-                if location_code == "":
-                    print("Anulowano - lokalizacja nie została przypisana.")
-                    break
-
-                if assign_new_location(session, product, location_code):
-                    print(f"Przypisano lokalizację {location_code} do produktu {product.name}")
-                    break
-                else:
-                    print(f"Nie ma takiej lokalizacji: {location_code}. Spróbuj ponownie.")
-
-        else:
-            # --- READ (zawsze pokazujemy obecną lokalizację) ---
-            current_location = find_location_by_id(session, product.location_id)
-            print(f"Obecna lokalizacja: {current_location.code}")
-
-            action = input("Co chcesz zrobić? [P]rzypisz nową / [U]suń / Enter = nic: ")
-
-            if action.upper() == "U":
-                remove_location(session, product)
-                print(f"Usunięto przypisanie lokalizacji dla produktu {product.name}")
-            elif action.upper() == "P":
-                while True:
-                    new_location_code = input("Podaj nową lokalizację (Enter, by anulować): ")
-
-                    if new_location_code == "":
-                        print("Anulowano - lokalizacja nie została zmieniona.")
-                        break
-
-                    if update_location(session, product, new_location_code):
-                        print(f"Zmieniono lokalizację na {new_location_code}")
-                        break
-                    else:
-                        print(f"Nie ma takiej lokalizacji: {new_location_code}. Spróbuj ponownie.")
-            elif action == "":
-                print(f"Nic nie zmieniono, obecna lokalizacja to: {current_location.code}")
-            else:
-                print("Nieznana opcja - wybierz P lub U.")
+    pokaz_lokalizacje(session, product)
 
 session.close()
