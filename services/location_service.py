@@ -105,3 +105,37 @@ def move_product_location(session, product, from_code, to_code):
     link.location_id = to_location.id
     session.commit()
     return "ok"
+
+def create_location(session, rack, shelf):
+    """Tworzy nową lokalizację. Kod powstaje z regału i półki (np. 'A' + '1' = 'A1').
+    Zwraca: "ok" albo "already_exists"."""
+    code = rack + shelf
+
+    if find_location(session, code) is not None:
+        return "already_exists"
+
+    session.add(Location(code=code, rack=rack, shelf=shelf))
+    session.commit()
+    return "ok"
+
+
+def delete_location(session, location_code):
+    """Usuwa lokalizację, ale tylko jeśli nic na niej nie leży.
+    Zwraca: "ok", "location_not_found" albo "has_products"."""
+    location = find_location(session, location_code)
+
+    if location is None:
+        return "location_not_found"
+
+    link = (
+        session.query(ProductLocation)
+        .filter(ProductLocation.location_id == location.id)
+        .first()
+    )
+
+    if link is not None:
+        return "has_products"
+
+    session.delete(location)
+    session.commit()
+    return "ok"
