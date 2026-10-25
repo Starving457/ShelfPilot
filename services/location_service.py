@@ -106,17 +106,28 @@ def move_product_location(session, product, from_code, to_code):
     session.commit()
     return "ok"
 
-def create_location(session, rack, shelf):
-    """Tworzy nową lokalizację. Kod powstaje z regału i półki (np. 'A' + '1' = 'A1').
+def create_location(session, code):
+    """Tworzy nową lokalizację (na razie cały regał, np. 'A1').
+    Kolumny rack i shelf zostają w bazie na przyszłość: teraz rack = kod, shelf puste.
     Zwraca: "ok" albo "already_exists"."""
-    code = rack + shelf
-
     if find_location(session, code) is not None:
         return "already_exists"
 
-    session.add(Location(code=code, rack=rack, shelf=shelf))
+    session.add(Location(code=code, rack=code, shelf=None))
     session.commit()
     return "ok"
+
+
+def _location_sort_key(location):
+    """Pomocnicza: sortuje A1, A2, A10 w naturalnej kolejności (a nie A1, A10, A2)."""
+    letters = "".join(c for c in location.code if c.isalpha())
+    digits = "".join(c for c in location.code if c.isdigit())
+    return (letters, int(digits) if digits else 0)
+
+
+def list_locations(session):
+    """Zwraca listę wszystkich lokalizacji w naturalnej kolejności (A1, A2, ..., A10)."""
+    return sorted(session.query(Location).all(), key=_location_sort_key)
 
 
 def delete_location(session, location_code):

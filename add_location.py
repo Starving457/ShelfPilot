@@ -4,26 +4,13 @@ from services.location_service import find_location, create_location
 session = SessionLocal()
 
 while True:
-    # Regał: tylko litery. Enter kończy cały skrypt.
-    rack = input("\nPodaj regał, np. A (Enter, by zakończyć): ").strip().upper()
-    if rack == "":
+    # Kod regału: litery i cyfry, zaczyna się od litery (np. A1). Enter kończy skrypt.
+    code = input("\nPodaj kod regału, np. A1 (Enter, by zakończyć): ").strip().upper()
+    if code == "":
         break
-    if not rack.isalpha():
-        print("Regał może zawierać tylko litery.")
+    if not (code.isalnum() and code[0].isalpha()):
+        print("Kod musi zaczynać się od litery i zawierać tylko litery i cyfry, np. A1.")
         continue
-
-    # Półka: tylko cyfry. Pytamy do skutku, Enter anuluje.
-    while True:
-        shelf = input("Podaj numer półki, np. 1 (Enter, by anulować): ").strip()
-        if shelf == "" or shelf.isdigit():
-            break
-        print("Numer półki może zawierać tylko cyfry.")
-
-    if shelf == "":
-        print("Anulowano.")
-        continue
-
-    code = rack + shelf
 
     if find_location(session, code) is not None:
         print(f"Lokalizacja {code} już istnieje.")
@@ -37,14 +24,14 @@ while True:
         print("Wybierz T, N lub E.")
 
     if answer == "E":
-        print("Wprowadź dane ponownie.")
+        print("Wprowadź kod ponownie.")
         continue
 
     if answer == "N":
         print("Anulowano.")
         continue
 
-    status = create_location(session, rack, shelf)
+    status = create_location(session, code)
     if status == "ok":
         print(f"Dodano lokalizację {code}.")
     else:

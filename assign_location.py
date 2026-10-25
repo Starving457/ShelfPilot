@@ -17,7 +17,7 @@ KOMUNIKATY = {
 
 
 def pokaz_lokalizacje(session, product):
-    """Wypisuje wszystkie półki, na których leży produkt."""
+    """Wypisuje wszystkie lokalizacje, na których leży produkt."""
     locations = get_product_locations(session, product)
     if not locations:
         print("Ten produkt nie ma jeszcze żadnej lokalizacji.")
@@ -41,27 +41,27 @@ while True:
     print(f"Znaleziono: {product.name}")
     pokaz_lokalizacje(session, product)
 
-    action = input("Co chcesz zrobić? [D]odaj / [P]rzenieś / [U]suń / Enter = nic: ").upper()
+    action = input("Co chcesz zrobić? [D]odaj / [P]rzenieś / [U]suń / Enter = nic: ").strip().upper()
 
     if action == "":
         print("Nic nie zmieniono.")
 
     elif action == "D":
-        new_code = input("Kod lokalizacji do dodania (Enter, by anulować): ")
+        new_code = input("Kod lokalizacji do dodania (Enter, by anulować): ").strip().upper()
         if new_code != "":
             status = add_product_to_location(session, product, new_code)
             print(KOMUNIKATY[status])
 
     elif action == "P":
-        from_code = input("Z której lokalizacji przenieść (Enter, by anulować): ")
+        from_code = input("Z której lokalizacji przenieść (Enter, by anulować): ").strip().upper()
         if from_code != "":
-            to_code = input("Na którą lokalizację (Enter, by anulować): ")
+            to_code = input("Na którą lokalizację (Enter, by anulować): ").strip().upper()
             if to_code != "":
                 status = move_product_location(session, product, from_code, to_code)
                 print(KOMUNIKATY[status])
 
     elif action == "U":
-        del_code = input("Z której lokalizacji usunąć (Enter, by anulować): ")
+        del_code = input("Z której lokalizacji usunąć (Enter, by anulować): ").strip().upper()
         if del_code != "":
             status = remove_product_from_location(session, product, del_code)
             print(KOMUNIKATY[status])

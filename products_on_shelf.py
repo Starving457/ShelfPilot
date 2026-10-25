@@ -4,7 +4,7 @@ from services.location_service import find_location, find_products_by_location
 session = SessionLocal()
 
 while True:
-    code = input("\nPodaj kod lokalizacji (Enter, by zakończyć): ")
+    code = input("\nPodaj kod lokalizacji (Enter, by zakończyć): ").strip().upper()
     if code == "":
         break
 
