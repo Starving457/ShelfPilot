@@ -1,3 +1,5 @@
+from datetime import date
+
 from sqlalchemy import Column, Integer, String, Date, ForeignKey, UniqueConstraint
 from database.db import Base
 
@@ -12,6 +14,20 @@ class Product(Base):
     wapro_quantity = Column(Integer)
     counted_quantity = Column(Integer, nullable=True)
     counted_at = Column(Date, nullable=True)
+
+    # Producent i kategoria (wartości zatwierdzone)
+    manufacturer = Column(String, nullable=True)
+    category = Column(String, nullable=True)
+    # Skąd pochodzi zatwierdzona wartość: "manual", "rule" albo "ai"
+    classification_source = Column(String, nullable=True)
+    # "pending" = czeka na sprawdzenie, "confirmed" = zatwierdzony przez człowieka
+    review_status = Column(String, default="pending")
+    first_seen_at = Column(Date, default=date.today)
+
+    # Podpowiedź (czeka na zatwierdzenie albo odrzucenie)
+    suggested_manufacturer = Column(String, nullable=True)
+    suggested_category = Column(String, nullable=True)
+    suggested_source = Column(String, nullable=True)
 
 
 class Location(Base):

@@ -21,6 +21,9 @@ while True:
             kody = ", ".join(loc.code for loc in locations)
         else:
             kody = "brak lokalizacji"
-        print(f"{product.code} | {product.name} | {kody}")
+
+        manufacturer = product.manufacturer or "-"
+        category = product.category or "-"
+        print(f"{product.code} | {product.name} | {manufacturer} / {category} | {kody}")
 
 session.close()
