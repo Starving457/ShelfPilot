@@ -8,7 +8,7 @@ from database.models import Product, Location
 
 @pytest.fixture
 def session():
-    """Tworzy świeżą, tymczasową bazę danych w pamięci na potrzeby jednego testu."""
+    """Creates a fresh, temporary in-memory database for a single test."""
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
 

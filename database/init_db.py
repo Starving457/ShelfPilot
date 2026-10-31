@@ -1,5 +1,5 @@
 from database.db import engine, Base
-from database.models import Product, Location, ProductLocation
+from database.models import Product, Location, ProductLocation, InventoryCount
 
 
 print("Creating database...")

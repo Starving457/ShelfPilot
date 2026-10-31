@@ -8,60 +8,60 @@ from services.location_service import (
 )
 
 
-def test_create_location_sukces(session):
-    wynik = create_location(session, "A1")
+def test_create_location_success(session):
+    result = create_location(session, "A1")
 
-    assert wynik == "ok"
-    lokalizacja = find_location(session, "A1")
-    assert lokalizacja is not None
-    assert lokalizacja.rack == "A1"
-    assert lokalizacja.shelf is None
+    assert result == "ok"
+    location = find_location(session, "A1")
+    assert location is not None
+    assert location.rack == "A1"
+    assert location.shelf is None
 
 
-def test_create_location_duplikat(session):
+def test_create_location_duplicate(session):
     create_location(session, "A1")
 
-    wynik = create_location(session, "A1")
+    result = create_location(session, "A1")
 
-    assert wynik == "already_exists"
+    assert result == "already_exists"
 
 
-def test_list_locations_pusta(session):
+def test_list_locations_empty(session):
     assert list_locations(session) == []
 
 
-def test_list_locations_naturalna_kolejnosc(session):
-    for kod in ["A10", "A2", "B1", "A1"]:
-        create_location(session, kod)
+def test_list_locations_natural_order(session):
+    for code in ["A10", "A2", "B1", "A1"]:
+        create_location(session, code)
 
-    kody = [l.code for l in list_locations(session)]
+    codes = [loc.code for loc in list_locations(session)]
 
-    assert kody == ["A1", "A2", "A10", "B1"]
+    assert codes == ["A1", "A2", "A10", "B1"]
 
 
-def test_delete_location_sukces(session):
+def test_delete_location_success(session):
     create_location(session, "A1")
 
-    wynik = delete_location(session, "A1")
+    result = delete_location(session, "A1")
 
-    assert wynik == "ok"
+    assert result == "ok"
     assert find_location(session, "A1") is None
 
 
-def test_delete_location_nieistniejaca(session):
-    wynik = delete_location(session, "NIEISTNIEJACA")
+def test_delete_location_nonexistent(session):
+    result = delete_location(session, "NONEXISTENT")
 
-    assert wynik == "location_not_found"
+    assert result == "location_not_found"
 
 
-def test_delete_location_z_produktami_jest_blokowane(session):
-    produkt = Product(code="TEST123", name="Testowa Śruba", wapro_quantity=5)
-    session.add(produkt)
+def test_delete_location_with_products_is_blocked(session):
+    product = Product(code="TEST123", name="Test Screw", wapro_quantity=5)
+    session.add(product)
     session.commit()
     create_location(session, "A1")
-    add_product_to_location(session, produkt, "A1")
+    add_product_to_location(session, product, "A1")
 
-    wynik = delete_location(session, "A1")
+    result = delete_location(session, "A1")
 
-    assert wynik == "has_products"
+    assert result == "has_products"
     assert find_location(session, "A1") is not None

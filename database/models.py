@@ -12,8 +12,6 @@ class Product(Base):
     ean = Column(String)
     name = Column(String)
     wapro_quantity = Column(Integer)
-    counted_quantity = Column(Integer, nullable=True)
-    counted_at = Column(Date, nullable=True)
 
     # Producent i kategoria (wartości zatwierdzone)
     manufacturer = Column(String, nullable=True)
@@ -48,3 +46,17 @@ class ProductLocation(Base):
     quantity = Column(Integer, nullable=True)
 
     __table_args__ = (UniqueConstraint("product_id", "location_id"),)
+
+
+class InventoryCount(Base):
+    """Jedno policzenie produktu. Wpisy się dopisuje, nigdy nie nadpisuje (historia)."""
+
+    __tablename__ = "inventory_counts"
+
+    id = Column(Integer, primary_key=True)
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
+    counted_at = Column(Date, nullable=False, default=date.today)
+    # Ile sztuk naprawdę policzono
+    counted_quantity = Column(Integer, nullable=False)
+    # Stan z WAPRO w chwili liczenia (zapisany, bo WAPRO zmienia się po sprzedaży)
+    wapro_quantity = Column(Integer, nullable=True)

@@ -6,55 +6,55 @@ from services.classification_service import (
 )
 
 
-def _produkt(session, code="P1", name="VORTEX DIAMONDBACK HD 10X42 LORNETKA"):
-    produkt = Product(code=code, name=name, wapro_quantity=3)
-    session.add(produkt)
+def _make_product(session, code="P1", name="VORTEX DIAMONDBACK HD 10X42 LORNETKA"):
+    product = Product(code=code, name=name, wapro_quantity=3)
+    session.add(product)
     session.commit()
-    return produkt
+    return product
 
 
-def test_nowy_produkt_jest_do_sprawdzenia(session):
-    produkt = _produkt(session)
+def test_new_product_is_pending_review(session):
+    product = _make_product(session)
 
-    assert produkt.review_status == "pending"
-    assert produkt.first_seen_at is not None
-    assert produkt.manufacturer is None
-
-
-def test_set_attributes_recznie_zatwierdza(session):
-    produkt = _produkt(session)
-
-    wynik = set_product_attributes(session, produkt, "Vortex", "Lornetka")
-
-    assert wynik == "ok"
-    assert produkt.manufacturer == "Vortex"
-    assert produkt.category == "Lornetka"
-    assert produkt.classification_source == "manual"
-    assert produkt.review_status == "confirmed"
+    assert product.review_status == "pending"
+    assert product.first_seen_at is not None
+    assert product.manufacturer is None
 
 
-def test_set_attributes_puste_pola_sa_odrzucane(session):
-    produkt = _produkt(session)
+def test_set_attributes_manually_confirms(session):
+    product = _make_product(session)
 
-    assert set_product_attributes(session, produkt, "", "Lornetka") == "invalid"
-    assert set_product_attributes(session, produkt, "Vortex", "   ") == "invalid"
-    assert produkt.review_status == "pending"
+    result = set_product_attributes(session, product, "Vortex", "Lornetka")
 
-
-def test_set_attributes_poprawia_pomylke(session):
-    produkt = _produkt(session)
-    set_product_attributes(session, produkt, "Vortex", "Luneta")
-
-    set_product_attributes(session, produkt, "Vortex", "Lornetka")
-
-    assert produkt.category == "Lornetka"
-    assert produkt.classification_source == "manual"
+    assert result == "ok"
+    assert product.manufacturer == "Vortex"
+    assert product.category == "Lornetka"
+    assert product.classification_source == "manual"
+    assert product.review_status == "confirmed"
 
 
-def test_list_manufacturers_i_categories(session):
-    a = _produkt(session, "A")
-    b = _produkt(session, "B")
-    c = _produkt(session, "C")
+def test_set_attributes_rejects_empty_fields(session):
+    product = _make_product(session)
+
+    assert set_product_attributes(session, product, "", "Lornetka") == "invalid"
+    assert set_product_attributes(session, product, "Vortex", "   ") == "invalid"
+    assert product.review_status == "pending"
+
+
+def test_set_attributes_corrects_a_mistake(session):
+    product = _make_product(session)
+    set_product_attributes(session, product, "Vortex", "Luneta")
+
+    set_product_attributes(session, product, "Vortex", "Lornetka")
+
+    assert product.category == "Lornetka"
+    assert product.classification_source == "manual"
+
+
+def test_list_manufacturers_and_categories(session):
+    a = _make_product(session, "A")
+    b = _make_product(session, "B")
+    c = _make_product(session, "C")
     set_product_attributes(session, a, "Vortex", "Lornetka")
     set_product_attributes(session, b, "Vortex", "Luneta")
     set_product_attributes(session, c, "Zeiss", "Lornetka")

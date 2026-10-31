@@ -10,193 +10,193 @@ from services.location_service import (
 )
 
 
-def test_find_product_gdy_istnieje(session):
-    produkt = Product(code="TEST123", name="Testowa Śruba", wapro_quantity=5)
-    session.add(produkt)
+def test_find_product_when_exists(session):
+    product = Product(code="TEST123", name="Test Screw", wapro_quantity=5)
+    session.add(product)
     session.commit()
 
-    wynik = find_product(session, "TEST123")
+    result = find_product(session, "TEST123")
 
-    assert wynik is not None
-    assert wynik.name == "Testowa Śruba"
-
-
-def test_find_product_gdy_nie_istnieje(session):
-    wynik = find_product(session, "NIEISTNIEJACY_KOD")
-
-    assert wynik is None
+    assert result is not None
+    assert result.name == "Test Screw"
 
 
-def test_find_location_gdy_istnieje(session):
-    lokalizacja = Location(code="A1", rack="A", shelf="1")
-    session.add(lokalizacja)
+def test_find_product_when_not_exists(session):
+    result = find_product(session, "NONEXISTENT_CODE")
+
+    assert result is None
+
+
+def test_find_location_when_exists(session):
+    location = Location(code="A1", rack="A", shelf="1")
+    session.add(location)
     session.commit()
 
-    wynik = find_location(session, "A1")
+    result = find_location(session, "A1")
 
-    assert wynik is not None
-    assert wynik.rack == "A"
-    assert wynik.shelf == "1"
-
-
-def test_find_location_gdy_nie_istnieje(session):
-    wynik = find_location(session, "NIEISTNIEJACA")
-
-    assert wynik is None
+    assert result is not None
+    assert result.rack == "A"
+    assert result.shelf == "1"
 
 
-def test_add_product_to_location_sukces(session):
-    produkt = Product(code="TEST123", name="Testowa Śruba", wapro_quantity=5)
-    lokalizacja = Location(code="A1", rack="A", shelf="1")
-    session.add_all([produkt, lokalizacja])
+def test_find_location_when_not_exists(session):
+    result = find_location(session, "NONEXISTENT")
+
+    assert result is None
+
+
+def test_add_product_to_location_success(session):
+    product = Product(code="TEST123", name="Test Screw", wapro_quantity=5)
+    location = Location(code="A1", rack="A", shelf="1")
+    session.add_all([product, location])
     session.commit()
 
-    wynik = add_product_to_location(session, produkt, "A1")
+    result = add_product_to_location(session, product, "A1")
 
-    assert wynik == "ok"
-    kody = [l.code for l in get_product_locations(session, produkt)]
-    assert kody == ["A1"]
+    assert result == "ok"
+    codes = [loc.code for loc in get_product_locations(session, product)]
+    assert codes == ["A1"]
 
 
-def test_add_product_to_location_nieistniejaca_lokalizacja(session):
-    produkt = Product(code="TEST123", name="Testowa Śruba", wapro_quantity=5)
-    session.add(produkt)
+def test_add_product_to_location_nonexistent_location(session):
+    product = Product(code="TEST123", name="Test Screw", wapro_quantity=5)
+    session.add(product)
     session.commit()
 
-    wynik = add_product_to_location(session, produkt, "NIEISTNIEJACA")
+    result = add_product_to_location(session, product, "NONEXISTENT")
 
-    assert wynik == "location_not_found"
-    assert get_product_locations(session, produkt) == []
+    assert result == "location_not_found"
+    assert get_product_locations(session, product) == []
 
 
-def test_add_product_to_location_juz_przypisany(session):
-    produkt = Product(code="TEST123", name="Testowa Śruba", wapro_quantity=5)
-    lokalizacja = Location(code="A1", rack="A", shelf="1")
-    session.add_all([produkt, lokalizacja])
+def test_add_product_to_location_already_assigned(session):
+    product = Product(code="TEST123", name="Test Screw", wapro_quantity=5)
+    location = Location(code="A1", rack="A", shelf="1")
+    session.add_all([product, location])
     session.commit()
 
-    add_product_to_location(session, produkt, "A1")
-    wynik = add_product_to_location(session, produkt, "A1")
+    add_product_to_location(session, product, "A1")
+    result = add_product_to_location(session, product, "A1")
 
-    assert wynik == "already_assigned"
-    assert len(get_product_locations(session, produkt)) == 1
+    assert result == "already_assigned"
+    assert len(get_product_locations(session, product)) == 1
 
 
-def test_produkt_na_kilku_polkach(session):
-    produkt = Product(code="TEST123", name="Testowa Śruba", wapro_quantity=50)
+def test_product_on_multiple_locations(session):
+    product = Product(code="TEST123", name="Test Screw", wapro_quantity=50)
     a1 = Location(code="A1", rack="A", shelf="1")
     a2 = Location(code="A2", rack="A", shelf="2")
-    session.add_all([produkt, a1, a2])
+    session.add_all([product, a1, a2])
     session.commit()
 
-    add_product_to_location(session, produkt, "A1")
-    add_product_to_location(session, produkt, "A2")
+    add_product_to_location(session, product, "A1")
+    add_product_to_location(session, product, "A2")
 
-    kody = sorted(l.code for l in get_product_locations(session, produkt))
-    assert kody == ["A1", "A2"]
+    codes = sorted(loc.code for loc in get_product_locations(session, product))
+    assert codes == ["A1", "A2"]
 
 
-def test_remove_product_from_location_sukces(session):
-    produkt = Product(code="TEST123", name="Testowa Śruba", wapro_quantity=50)
+def test_remove_product_from_location_success(session):
+    product = Product(code="TEST123", name="Test Screw", wapro_quantity=50)
     a1 = Location(code="A1", rack="A", shelf="1")
     a2 = Location(code="A2", rack="A", shelf="2")
-    session.add_all([produkt, a1, a2])
+    session.add_all([product, a1, a2])
     session.commit()
-    add_product_to_location(session, produkt, "A1")
-    add_product_to_location(session, produkt, "A2")
+    add_product_to_location(session, product, "A1")
+    add_product_to_location(session, product, "A2")
 
-    wynik = remove_product_from_location(session, produkt, "A1")
+    result = remove_product_from_location(session, product, "A1")
 
-    assert wynik == "ok"
-    kody = [l.code for l in get_product_locations(session, produkt)]
-    assert kody == ["A2"]
-
-
-def test_remove_product_from_location_nie_przypisany(session):
-    produkt = Product(code="TEST123", name="Testowa Śruba", wapro_quantity=5)
-    lokalizacja = Location(code="A1", rack="A", shelf="1")
-    session.add_all([produkt, lokalizacja])
-    session.commit()
-
-    wynik = remove_product_from_location(session, produkt, "A1")
-
-    assert wynik == "not_assigned"
+    assert result == "ok"
+    codes = [loc.code for loc in get_product_locations(session, product)]
+    assert codes == ["A2"]
 
 
-def test_remove_product_from_location_nieistniejaca_lokalizacja(session):
-    produkt = Product(code="TEST123", name="Testowa Śruba", wapro_quantity=5)
-    session.add(produkt)
+def test_remove_product_from_location_not_assigned(session):
+    product = Product(code="TEST123", name="Test Screw", wapro_quantity=5)
+    location = Location(code="A1", rack="A", shelf="1")
+    session.add_all([product, location])
     session.commit()
 
-    wynik = remove_product_from_location(session, produkt, "NIEISTNIEJACA")
+    result = remove_product_from_location(session, product, "A1")
 
-    assert wynik == "location_not_found"
+    assert result == "not_assigned"
 
 
-def test_move_product_location_sukces(session):
-    produkt = Product(code="TEST123", name="Testowa Śruba", wapro_quantity=5)
+def test_remove_product_from_location_nonexistent_location(session):
+    product = Product(code="TEST123", name="Test Screw", wapro_quantity=5)
+    session.add(product)
+    session.commit()
+
+    result = remove_product_from_location(session, product, "NONEXISTENT")
+
+    assert result == "location_not_found"
+
+
+def test_move_product_location_success(session):
+    product = Product(code="TEST123", name="Test Screw", wapro_quantity=5)
     a1 = Location(code="A1", rack="A", shelf="1")
     a2 = Location(code="A2", rack="A", shelf="2")
-    session.add_all([produkt, a1, a2])
+    session.add_all([product, a1, a2])
     session.commit()
-    add_product_to_location(session, produkt, "A1")
+    add_product_to_location(session, product, "A1")
 
-    wynik = move_product_location(session, produkt, "A1", "A2")
+    result = move_product_location(session, product, "A1", "A2")
 
-    assert wynik == "ok"
-    kody = [l.code for l in get_product_locations(session, produkt)]
-    assert kody == ["A2"]
+    assert result == "ok"
+    codes = [loc.code for loc in get_product_locations(session, product)]
+    assert codes == ["A2"]
 
 
-def test_move_product_location_nie_przypisany(session):
-    produkt = Product(code="TEST123", name="Testowa Śruba", wapro_quantity=5)
+def test_move_product_location_not_assigned(session):
+    product = Product(code="TEST123", name="Test Screw", wapro_quantity=5)
     a1 = Location(code="A1", rack="A", shelf="1")
     a2 = Location(code="A2", rack="A", shelf="2")
-    session.add_all([produkt, a1, a2])
+    session.add_all([product, a1, a2])
     session.commit()
 
-    wynik = move_product_location(session, produkt, "A1", "A2")
+    result = move_product_location(session, product, "A1", "A2")
 
-    assert wynik == "not_assigned"
-    assert get_product_locations(session, produkt) == []
+    assert result == "not_assigned"
+    assert get_product_locations(session, product) == []
 
 
-def test_move_product_location_juz_przypisany(session):
-    produkt = Product(code="TEST123", name="Testowa Śruba", wapro_quantity=5)
+def test_move_product_location_already_assigned(session):
+    product = Product(code="TEST123", name="Test Screw", wapro_quantity=5)
     a1 = Location(code="A1", rack="A", shelf="1")
     a2 = Location(code="A2", rack="A", shelf="2")
-    session.add_all([produkt, a1, a2])
+    session.add_all([product, a1, a2])
     session.commit()
-    add_product_to_location(session, produkt, "A1")
-    add_product_to_location(session, produkt, "A2")
+    add_product_to_location(session, product, "A1")
+    add_product_to_location(session, product, "A2")
 
-    wynik = move_product_location(session, produkt, "A1", "A2")
+    result = move_product_location(session, product, "A1", "A2")
 
-    assert wynik == "already_assigned"
-    kody = sorted(l.code for l in get_product_locations(session, produkt))
-    assert kody == ["A1", "A2"]
+    assert result == "already_assigned"
+    codes = sorted(loc.code for loc in get_product_locations(session, product))
+    assert codes == ["A1", "A2"]
 
 
-def test_find_products_by_location_z_produktami(session):
+def test_find_products_by_location_with_products(session):
     a1 = Location(code="A1", rack="A", shelf="1")
     a2 = Location(code="A2", rack="A", shelf="2")
-    produkt1 = Product(code="ABC123", name="Śruba", wapro_quantity=5)
-    produkt2 = Product(code="XYZ789", name="Nakrętka", wapro_quantity=10)
-    produkt3 = Product(code="QQQ111", name="Młotek", wapro_quantity=2)
-    session.add_all([a1, a2, produkt1, produkt2, produkt3])
+    product1 = Product(code="ABC123", name="Screw", wapro_quantity=5)
+    product2 = Product(code="XYZ789", name="Nut", wapro_quantity=10)
+    product3 = Product(code="QQQ111", name="Hammer", wapro_quantity=2)
+    session.add_all([a1, a2, product1, product2, product3])
     session.commit()
 
-    add_product_to_location(session, produkt1, "A1")
-    add_product_to_location(session, produkt2, "A1")
-    add_product_to_location(session, produkt3, "A2")
+    add_product_to_location(session, product1, "A1")
+    add_product_to_location(session, product2, "A1")
+    add_product_to_location(session, product3, "A2")
 
-    wyniki = find_products_by_location(session, "A1")
+    results = find_products_by_location(session, "A1")
 
-    kody = sorted(p.code for p in wyniki)
-    assert kody == ["ABC123", "XYZ789"]
+    codes = sorted(p.code for p in results)
+    assert codes == ["ABC123", "XYZ789"]
 
 
-def test_find_products_by_location_pusta_lub_nieistniejaca(session):
-    wyniki = find_products_by_location(session, "NIEISTNIEJACA")
+def test_find_products_by_location_empty_or_nonexistent(session):
+    results = find_products_by_location(session, "NONEXISTENT")
 
-    assert wyniki == []
+    assert results == []
