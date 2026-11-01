@@ -16,6 +16,42 @@ class GroupSummary:
     last_counted: date  # najnowsza data liczenia w grupie (albo None)
 
 
+@dataclass
+class ReportLine:
+    """Jedna pozycja raportu: wynik liczenia produktu zestawiony ze stanem WAPRO z chwili liczenia."""
+
+    product: Product
+    counted_quantity: int
+    wapro_quantity: int  # stan WAPRO zapisany przy liczeniu (albo None)
+    difference: int  # policzone minus WAPRO (albo None, gdy stan WAPRO był nieznany)
+    is_extra: bool  # znaleziony produkt, który w WAPRO miał stan 0
+
+
+@dataclass
+class GroupCoverage:
+    """Ile produktów grupy policzono w danym dniu."""
+
+    manufacturer: str
+    category: str
+    counted: int
+    total: int
+
+
+@dataclass
+class DayReport:
+    """Raport rozbieżności za jeden dzień."""
+
+    day: date
+    lines: list  # pozycje z różnicą (lub z nieznanym stanem WAPRO), od największej różnicy
+    counted_products: int
+    matching: int
+    shortages: int
+    surpluses: int
+    unknown_wapro: int
+    net_difference: int  # suma różnic w sztukach
+    coverage: list  # lista GroupCoverage
+
+
 def record_count(session, product, quantity, counted_at=None):
     """Zapisuje policzoną ilość produktu jako nowy wpis w historii.
     Razem z wynikiem zapisuje stan WAPRO z tej chwili (WAPRO zmienia się po sprzedaży).
@@ -133,6 +169,7 @@ def get_group_products(session, manufacturer, category):
 
     return [(p, last_counts.get(p.id)) for p in products]
 
+
 def get_group_extras(session, manufacturer, category):
     """Zwraca produkty grupy, które w WAPRO mają stan 0, posortowane po nazwie.
     To lista 'może się zdarzyć': produkty spoza rotacji, które pracownik może znaleźć
@@ -149,6 +186,7 @@ def get_group_extras(session, manufacturer, category):
         .all()
     )
 
+
 def count_products_outside_rotation(session):
     """Zwraca, ile produktów ze stanem WAPRO większym od zera nie ma zatwierdzonej kategorii,
     więc nie wchodzi do żadnej grupy (i nie będzie liczonych w rotacji)."""
@@ -161,4 +199,89 @@ def count_products_outside_rotation(session):
             | Product.category.is_(None),
         )
         .count()
+    )
+
+
+def get_day_report(session, day, manufacturer=None, category=None):
+    """Buduje raport rozbieżności za dany dzień (obiekt DayReport).
+    Dla każdego produktu bierze jego ostatnie liczenie z tego dnia i porównuje policzoną
+    ilość ze stanem WAPRO zapisanym w chwili liczenia. Opcjonalnie zawęża do producenta
+    i/lub kategorii. Pokrycie pokazuje, ile produktów każdej grupy policzono tego dnia."""
+    entries = (
+        session.query(InventoryCount)
+        .filter(InventoryCount.counted_at == day)
+        .order_by(InventoryCount.id)
+        .all()
+    )
+    last_by_product = {entry.product_id: entry for entry in entries}
+
+    products = {}
+    if last_by_product:
+        found = session.query(Product).filter(Product.id.in_(list(last_by_product))).all()
+        products = {product.id: product for product in found}
+
+    all_lines = []
+    for product_id, entry in last_by_product.items():
+        product = products[product_id]
+
+        if manufacturer is not None and product.manufacturer != manufacturer:
+            continue
+        if category is not None and product.category != category:
+            continue
+
+        if entry.wapro_quantity is None:
+            difference = None
+        else:
+            difference = entry.counted_quantity - entry.wapro_quantity
+
+        all_lines.append(
+            ReportLine(
+                product=product,
+                counted_quantity=entry.counted_quantity,
+                wapro_quantity=entry.wapro_quantity,
+                difference=difference,
+                is_extra=entry.wapro_quantity == 0 and entry.counted_quantity > 0,
+            )
+        )
+
+    known = [line for line in all_lines if line.difference is not None]
+    report_lines = [line for line in all_lines if line.difference != 0]
+    # Największa różnica (bezwzględna) pierwsza, nieznane stany WAPRO na końcu
+    report_lines.sort(
+        key=lambda line: (
+            line.difference is None,
+            -abs(line.difference or 0),
+            line.product.name or "",
+        )
+    )
+
+    # Pokrycie grup: ile produktów (z rotacji) każdej grupy policzono tego dnia
+    counted_ids = {line.product.id for line in all_lines}
+    group_members = {}
+    for product in _rotation_products(session):
+        group_members.setdefault((product.manufacturer, product.category), []).append(product)
+
+    coverage = []
+    for (group_manufacturer, group_category), members in group_members.items():
+        if manufacturer is not None and group_manufacturer != manufacturer:
+            continue
+        if category is not None and group_category != category:
+            continue
+        counted_here = sum(1 for member in members if member.id in counted_ids)
+        if counted_here > 0:
+            coverage.append(
+                GroupCoverage(group_manufacturer, group_category, counted_here, len(members))
+            )
+    coverage.sort(key=lambda c: (c.manufacturer, c.category))
+
+    return DayReport(
+        day=day,
+        lines=report_lines,
+        counted_products=len(all_lines),
+        matching=sum(1 for line in known if line.difference == 0),
+        shortages=sum(1 for line in known if line.difference < 0),
+        surpluses=sum(1 for line in known if line.difference > 0),
+        unknown_wapro=len(all_lines) - len(known),
+        net_difference=sum(line.difference for line in known),
+        coverage=coverage,
     )
