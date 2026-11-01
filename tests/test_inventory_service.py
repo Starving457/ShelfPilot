@@ -1,7 +1,15 @@
 from datetime import date
 
 from database.models import Product, InventoryCount
-from services.inventory_service import record_count, get_last_count
+from services.classification_service import set_product_attributes
+from services.inventory_service import (
+    record_count,
+    get_last_count,
+    list_groups,
+    suggest_next_group,
+    get_group_products,
+    count_products_outside_rotation,
+)
 
 
 def _make_product(session, code="P1", wapro_quantity=4):
@@ -130,3 +138,156 @@ def test_get_last_count_is_per_product(session):
 
     assert get_last_count(session, a) is not None
     assert get_last_count(session, b) is None
+
+
+# --- groups and "what to count today" ---
+
+
+def _make_classified(session, code, manufacturer, category, wapro_quantity=3, name=None):
+    product = Product(code=code, name=name or f"Product {code}", wapro_quantity=wapro_quantity)
+    session.add(product)
+    session.commit()
+    set_product_attributes(session, product, manufacturer, category)
+    return product
+
+
+def test_list_groups_empty(session):
+    assert list_groups(session) == []
+
+
+def test_list_groups_groups_by_manufacturer_and_category(session):
+    _make_classified(session, "A", "Vortex", "Lornetka")
+    _make_classified(session, "B", "Vortex", "Lornetka")
+    _make_classified(session, "C", "Vortex", "Luneta")
+    _make_classified(session, "D", "Zeiss", "Lornetka")
+
+    groups = list_groups(session)
+
+    assert [(g.manufacturer, g.category, g.product_count) for g in groups] == [
+        ("Vortex", "Lornetka", 2),
+        ("Vortex", "Luneta", 1),
+        ("Zeiss", "Lornetka", 1),
+    ]
+
+
+def test_list_groups_skips_unconfirmed_and_out_of_stock(session):
+    _make_classified(session, "A", "Vortex", "Lornetka")
+    _make_classified(session, "B", "Vortex", "Lornetka", wapro_quantity=0)
+    unconfirmed = Product(code="C", name="Unconfirmed", wapro_quantity=5)
+    session.add(unconfirmed)
+    session.commit()
+
+    groups = list_groups(session)
+
+    assert len(groups) == 1
+    assert groups[0].product_count == 1
+
+
+def test_list_groups_counting_stats(session):
+    a = _make_classified(session, "A", "Vortex", "Lornetka")
+    b = _make_classified(session, "B", "Vortex", "Lornetka")
+    _make_classified(session, "C", "Vortex", "Lornetka")
+    record_count(session, a, 3, counted_at=date(2026, 11, 2))
+    record_count(session, b, 3, counted_at=date(2026, 12, 1))
+
+    group = list_groups(session)[0]
+
+    assert group.product_count == 3
+    assert group.never_counted_count == 1
+    assert group.oldest_last_count == date(2026, 11, 2)
+    assert group.last_counted == date(2026, 12, 1)
+
+
+def test_list_groups_uses_latest_count_per_product(session):
+    a = _make_classified(session, "A", "Vortex", "Lornetka")
+    record_count(session, a, 3, counted_at=date(2026, 11, 2))
+    record_count(session, a, 4, counted_at=date(2026, 12, 1))
+
+    group = list_groups(session)[0]
+
+    assert group.oldest_last_count == date(2026, 12, 1)
+    assert group.never_counted_count == 0
+
+
+def test_list_groups_never_counted_group(session):
+    _make_classified(session, "A", "Vortex", "Lornetka")
+
+    group = list_groups(session)[0]
+
+    assert group.never_counted_count == 1
+    assert group.oldest_last_count is None
+    assert group.last_counted is None
+
+
+def test_suggest_next_group_none_when_no_groups(session):
+    assert suggest_next_group(session) is None
+
+
+def test_suggest_next_group_prefers_never_counted(session):
+    counted = _make_classified(session, "A", "Vortex", "Lornetka")
+    _make_classified(session, "B", "Zeiss", "Luneta")
+    record_count(session, counted, 3, counted_at=date(2026, 1, 1))
+
+    group = suggest_next_group(session)
+
+    assert (group.manufacturer, group.category) == ("Zeiss", "Luneta")
+
+
+def test_suggest_next_group_picks_oldest_when_all_counted(session):
+    a = _make_classified(session, "A", "Vortex", "Lornetka")
+    b = _make_classified(session, "B", "Zeiss", "Luneta")
+    record_count(session, a, 3, counted_at=date(2026, 11, 20))
+    record_count(session, b, 3, counted_at=date(2026, 11, 2))
+
+    group = suggest_next_group(session)
+
+    assert (group.manufacturer, group.category) == ("Zeiss", "Luneta")
+
+
+def test_suggest_next_group_new_product_pulls_group_forward(session):
+    old = _make_classified(session, "A", "Vortex", "Lornetka")
+    other = _make_classified(session, "B", "Zeiss", "Luneta")
+    record_count(session, old, 3, counted_at=date(2026, 11, 1))
+    record_count(session, other, 3, counted_at=date(2026, 10, 1))
+    _make_classified(session, "C", "Vortex", "Lornetka")  # new, never counted
+
+    group = suggest_next_group(session)
+
+    assert (group.manufacturer, group.category) == ("Vortex", "Lornetka")
+
+
+def test_suggest_next_group_tie_is_alphabetical(session):
+    _make_classified(session, "A", "Zeiss", "Luneta")
+    _make_classified(session, "B", "Vortex", "Lornetka")
+
+    group = suggest_next_group(session)
+
+    assert group.manufacturer == "Vortex"
+
+
+def test_get_group_products_returns_members_with_last_count(session):
+    a = _make_classified(session, "A", "Vortex", "Lornetka", name="B product")
+    b = _make_classified(session, "B", "Vortex", "Lornetka", name="A product")
+    _make_classified(session, "C", "Zeiss", "Lornetka")
+    record_count(session, a, 3, counted_at=date(2026, 11, 2))
+
+    pairs = get_group_products(session, "Vortex", "Lornetka")
+
+    assert [p.code for p, _ in pairs] == ["B", "A"]  # sorted by name
+    assert pairs[0][1] is None
+    assert pairs[1][1].counted_quantity == 3
+
+
+def test_get_group_products_unknown_group(session):
+    assert get_group_products(session, "Nobody", "Nothing") == []
+
+
+def test_count_products_outside_rotation(session):
+    _make_classified(session, "A", "Vortex", "Lornetka")
+    _make_classified(session, "B", "Vortex", "Lornetka", wapro_quantity=0)
+    for code in ("C", "D"):
+        session.add(Product(code=code, name="Unclassified", wapro_quantity=2))
+    session.add(Product(code="E", name="Unclassified, no stock", wapro_quantity=0))
+    session.commit()
+
+    assert count_products_outside_rotation(session) == 2
