@@ -133,6 +133,21 @@ def get_group_products(session, manufacturer, category):
 
     return [(p, last_counts.get(p.id)) for p in products]
 
+def get_group_extras(session, manufacturer, category):
+    """Zwraca produkty grupy, które w WAPRO mają stan 0, posortowane po nazwie.
+    To lista 'może się zdarzyć': produkty spoza rotacji, które pracownik może znaleźć
+    na półce i dopisać przez record_count. Nie wpływają na postęp grupy."""
+    return (
+        session.query(Product)
+        .filter(
+            Product.review_status == "confirmed",
+            Product.manufacturer == manufacturer,
+            Product.category == category,
+            Product.wapro_quantity == 0,
+        )
+        .order_by(Product.name)
+        .all()
+    )
 
 def count_products_outside_rotation(session):
     """Zwraca, ile produktów ze stanem WAPRO większym od zera nie ma zatwierdzonej kategorii,

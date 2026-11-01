@@ -8,6 +8,7 @@ from services.inventory_service import (
     list_groups,
     suggest_next_group,
     get_group_products,
+    get_group_extras,
     count_products_outside_rotation,
 )
 
@@ -141,7 +142,6 @@ def test_get_last_count_is_per_product(session):
 
 
 # --- groups and "what to count today" ---
-
 
 def _make_classified(session, code, manufacturer, category, wapro_quantity=3, name=None):
     product = Product(code=code, name=name or f"Product {code}", wapro_quantity=wapro_quantity)
@@ -291,3 +291,45 @@ def test_count_products_outside_rotation(session):
     session.commit()
 
     assert count_products_outside_rotation(session) == 2
+
+
+def test_get_group_extras_returns_only_zero_stock_products_of_the_group(session):
+    _make_classified(session, "A", "Vortex", "Lornetka", wapro_quantity=3)
+    _make_classified(session, "B", "Vortex", "Lornetka", wapro_quantity=0, name="Zebra")
+    _make_classified(session, "C", "Vortex", "Lornetka", wapro_quantity=0, name="Alpha")
+    _make_classified(session, "D", "Vortex", "Luneta", wapro_quantity=0)
+    _make_classified(session, "E", "Zeiss", "Lornetka", wapro_quantity=0)
+
+    extras = get_group_extras(session, "Vortex", "Lornetka")
+
+    assert [p.code for p in extras] == ["C", "B"]  # sorted by name
+
+
+def test_get_group_extras_ignores_unconfirmed_and_unknown_stock(session):
+    unconfirmed = Product(code="A", name="Unconfirmed", wapro_quantity=0, manufacturer="Vortex", category="Lornetka")
+    unknown = Product(code="B", name="Unknown stock", wapro_quantity=None)
+    session.add_all([unconfirmed, unknown])
+    session.commit()
+
+    assert get_group_extras(session, "Vortex", "Lornetka") == []
+
+
+def test_get_group_extras_are_not_part_of_rotation(session):
+    _make_classified(session, "A", "Vortex", "Lornetka", wapro_quantity=3)
+    _make_classified(session, "B", "Vortex", "Lornetka", wapro_quantity=0)
+
+    group = list_groups(session)[0]
+
+    assert group.product_count == 1
+    assert [p.code for p, _ in get_group_products(session, "Vortex", "Lornetka")] == ["A"]
+
+
+def test_extra_product_can_be_counted(session):
+    extra = _make_classified(session, "B", "Vortex", "Lornetka", wapro_quantity=0)
+
+    result = record_count(session, extra, 2)
+
+    assert result == "ok"
+    entry = get_last_count(session, extra)
+    assert entry.counted_quantity == 2
+    assert entry.wapro_quantity == 0
