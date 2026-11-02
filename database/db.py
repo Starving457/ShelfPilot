@@ -8,7 +8,7 @@ DATABASE_URL = "sqlite:///shelfpilot.db"
 
 engine = create_engine(
     DATABASE_URL,
-    echo=True
+    echo=False
 )
 
 

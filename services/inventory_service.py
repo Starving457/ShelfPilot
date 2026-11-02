@@ -17,6 +17,17 @@ class GroupSummary:
 
 
 @dataclass
+class ManufacturerSummary:
+    """Podsumowanie producenta: wszystkie jego grupy (kategorie) razem."""
+
+    manufacturer: str
+    group_count: int
+    product_count: int
+    never_counted_count: int
+    oldest_last_count: date  # najstarsza "ostatnia data liczenia" wśród policzonych produktów (albo None)
+
+
+@dataclass
 class ReportLine:
     """Jedna pozycja raportu: wynik liczenia produktu zestawiony ze stanem WAPRO z chwili liczenia."""
 
@@ -135,11 +146,36 @@ def list_groups(session):
     return sorted(groups, key=lambda g: (g.manufacturer, g.category))
 
 
-def suggest_next_group(session):
+def list_manufacturer_summaries(session):
+    """Zwraca listę producentów (ManufacturerSummary) posortowaną alfabetycznie."""
+    by_manufacturer = {}
+    for group in list_groups(session):
+        by_manufacturer.setdefault(group.manufacturer, []).append(group)
+
+    summaries = []
+    for manufacturer, groups in by_manufacturer.items():
+        dates = [g.oldest_last_count for g in groups if g.oldest_last_count is not None]
+        summaries.append(
+            ManufacturerSummary(
+                manufacturer=manufacturer,
+                group_count=len(groups),
+                product_count=sum(g.product_count for g in groups),
+                never_counted_count=sum(g.never_counted_count for g in groups),
+                oldest_last_count=min(dates) if dates else None,
+            )
+        )
+
+    return sorted(summaries, key=lambda m: m.manufacturer)
+
+
+def suggest_next_group(session, manufacturer=None):
     """Podpowiada, którą grupę liczyć dziś. Zwraca GroupSummary albo None, jeśli nie ma grup.
     Kolejność: najpierw grupy z produktem nigdy nieliczonym (w tym grupy całkiem nieliczone),
-    potem według najstarszej daty liczenia. Remis rozstrzyga kolejność alfabetyczna."""
+    potem według najstarszej daty liczenia. Remis rozstrzyga kolejność alfabetyczna.
+    Podanie producenta ogranicza wybór do jego grup."""
     groups = list_groups(session)
+    if manufacturer is not None:
+        groups = [g for g in groups if g.manufacturer == manufacturer]
 
     if not groups:
         return None
