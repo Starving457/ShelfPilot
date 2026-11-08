@@ -8,6 +8,8 @@ class Product(Base):
     __tablename__ = "products"
 
     id = Column(Integer, primary_key=True)
+    # Stały identyfikator artykułu w WAPRO (ID_ARTYKULU); puste dla produktów dodanych ręcznie
+    wapro_id = Column(Integer, unique=True, nullable=True)
     code = Column(String)
     ean = Column(String)
     name = Column(String)
