@@ -1,4 +1,5 @@
 from database.db import SessionLocal
+from services.classification_service import list_products_to_fill
 from services.import_service import import_articles
 from services.wapro_reader import (
     connect_wapro,
@@ -51,6 +52,10 @@ else:
     if answer == "T":
         import_articles(session, articles)
         print("Zapisano.")
+        to_fill = len(list_products_to_fill(session))
+        if to_fill > 0:
+            print(f"Uwaga: {to_fill} produktów ze stanem WAPRO > 0 nie ma producenta lub kategorii.")
+            print("Uzupełnij je skryptem fill_attributes.py.")
     else:
         print("Anulowano, nic nie zapisano.")
 
