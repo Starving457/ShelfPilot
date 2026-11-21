@@ -1,0 +1,34 @@
+# Lista kategorii produktów: jedna kategoria w linii.
+# Linie zaczynające się od # oraz puste linie są pomijane.
+# To jest robocza wersja do uzgodnienia z kierownikiem. Nazwy w liczbie mnogiej, bez powtórzeń.
+Lornetki
+Monokulary i termowizory obserwacyjne
+Lunety obserwacyjne
+Lunety celownicze
+Kolimatory i celowniki holograficzne
+Celowniki termowizyjne
+Nasadki termowizyjne i noktowizyjne
+Noktowizory
+Montaże i pierścienie
+Powiększalniki
+Iluminatory i lasery
+Dalmierze i stacje pogodowe
+Akcesoria do optyki
+Aparaty i kamery
+Obiektywy
+Statywy i głowice
+Oświetlenie foto i wideo
+Monitory i rejestratory
+Karty pamięci
+Akumulatory i zasilanie
+Torby i pokrowce
+Akcesoria foto i wideo
+Drony i akcesoria
+Fotopułapki
+Latarki
+Kamizelki, hełmy i oporządzenie taktyczne
+Ochrona słuchu i wzroku
+Broń
+Amunicja
+Akcesoria strzeleckie
+Inne

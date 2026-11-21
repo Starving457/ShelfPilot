@@ -1,4 +1,7 @@
+import difflib
+
 from database.models import Product
+from services.ai_service import SOURCE_PREFIX
 
 
 def _clean(text):
@@ -9,16 +12,60 @@ def _clean(text):
     return text if text != "" else None
 
 
-def resolve_choice(text, options):
-    """Zamienia wpisany tekst na wybraną wartość.
-    Numer z listy options (liczony od 1) wybiera istniejącą pozycję, każdy inny tekst to nowa nazwa.
-    Zwraca wybraną wartość albo None, jeśli nic nie wpisano."""
-    text = _clean(text)
-    if text is None:
-        return None
-    if text.isdigit() and 1 <= int(text) <= len(options):
-        return options[int(text) - 1]
-    return text
+def common_value(values):
+    """Zwraca wartość, jeśli wszystkie podane wartości są takie same i niepuste.
+    W przeciwnym razie (różne wartości, same puste albo pusta lista) zwraca None."""
+    unique = set(values)
+    if len(unique) == 1:
+        return unique.pop()
+    return None
+
+
+def load_seed_categories(path):
+    """Czyta listę kategorii z pliku tekstowego: jedna kategoria w linii, puste linie i linie
+    zaczynające się od # są pomijane. Brak pliku oznacza pustą listę."""
+    try:
+        with open(path, encoding="utf-8-sig") as file:
+            lines = file.read().splitlines()
+    except FileNotFoundError:
+        return []
+
+    names = []
+    for line in lines:
+        name = _clean(line)
+        if name is not None and not name.startswith("#"):
+            names.append(name)
+    return names
+
+
+def merge_options(*lists):
+    """Łączy listy nazw w jedną posortowaną listę bez duplikatów.
+    Wielkość liter nie ma znaczenia; zostaje pisownia z pierwszej listy, w której nazwa wystąpiła."""
+    unique = {}
+    for items in lists:
+        for item in items:
+            unique.setdefault(item.lower(), item)
+    return sorted(unique.values(), key=str.lower)
+
+
+def filter_options(options, text):
+    """Zwraca nazwy zawierające wszystkie słowa z tekstu (bez względu na wielkość liter).
+    Pusty tekst zwraca wszystkie nazwy."""
+    words = text.lower().split()
+    return [option for option in options if all(word in option.lower() for word in words)]
+
+
+def find_similar(name, options, cutoff=0.8, limit=5):
+    """Zwraca istniejące nazwy podobne do podanej (ta sama nazwa inną wielkością liter, literówka,
+    inna odmiana). Najbardziej podobne są pierwsze. Służy do ostrzeżenia przed dubletami."""
+    name_lower = name.lower()
+    scored = []
+    for option in options:
+        ratio = difflib.SequenceMatcher(None, name_lower, option.lower()).ratio()
+        if ratio >= cutoff:
+            scored.append((ratio, option))
+    scored.sort(key=lambda pair: (-pair[0], pair[1].lower()))
+    return [option for _, option in scored[:limit]]
 
 
 def _canonical(session, column, text):
@@ -126,6 +173,90 @@ def list_filled_groups(session):
         (manufacturer, category, sorted(groups[(manufacturer, category)], key=lambda p: p.name or ""))
         for manufacturer, category in ordered
     ]
+
+
+def confidence_of(product):
+    """Pewność podpowiedzi AI: "high", "medium" albo "low" (brak informacji liczymy jako "low")."""
+    source = product.suggested_source or ""
+    if source.startswith(SOURCE_PREFIX):
+        level = source[len(SOURCE_PREFIX):]
+        if level in ("high", "medium"):
+            return level
+    return "low"
+
+
+def list_suggestion_groups(session):
+    """Zwraca podpowiedzi AI, które czekają na decyzję, pogrupowane jako lista trójek
+    (producent, kategoria, produkty), alfabetycznie. Bierze tylko produkty, które mają i podpowiedzianego
+    producenta, i podpowiedzianą kategorię, a nie są jeszcze zatwierdzone."""
+    products = (
+        session.query(Product)
+        .filter(
+            Product.suggested_manufacturer.isnot(None),
+            Product.suggested_category.isnot(None),
+            Product.suggested_source.like(SOURCE_PREFIX + "%"),
+            (Product.review_status != "confirmed")
+            | Product.manufacturer.is_(None)
+            | Product.category.is_(None),
+        )
+        .all()
+    )
+
+    groups = {}
+    labels = {}
+    for product in products:
+        key = (product.suggested_manufacturer.lower(), product.suggested_category.lower())
+        labels.setdefault(key, (product.suggested_manufacturer, product.suggested_category))
+        groups.setdefault(key, []).append(product)
+
+    return [
+        (labels[key][0], labels[key][1], sorted(groups[key], key=lambda p: p.name or ""))
+        for key in sorted(groups)
+    ]
+
+
+def approve_suggestions(session, products):
+    """Zatwierdza podpowiedzi AI: podpowiedziany producent i kategoria stają się zatwierdzone
+    (źródło "ai"). Jeśli taki producent albo kategoria już istnieje (inna wielkość liter),
+    używana jest istniejąca pisownia. Produkty bez pełnej podpowiedzi są pomijane.
+    Zwraca liczbę zatwierdzonych produktów."""
+    approved = 0
+    canonical_cache = {}
+
+    for product in products:
+        manufacturer = _clean(product.suggested_manufacturer)
+        category = _clean(product.suggested_category)
+        if manufacturer is None or category is None:
+            continue
+
+        key = (manufacturer.lower(), category.lower())
+        if key not in canonical_cache:
+            canonical_cache[key] = (
+                _canonical(session, Product.manufacturer, manufacturer),
+                _canonical(session, Product.category, category),
+            )
+        product.manufacturer, product.category = canonical_cache[key]
+        product.classification_source = "ai"
+        product.review_status = "confirmed"
+        product.suggested_manufacturer = None
+        product.suggested_category = None
+        product.suggested_source = None
+        approved += 1
+
+    session.commit()
+    return approved
+
+
+def reject_suggestions(session, products):
+    """Odrzuca podpowiedzi AI: produkty wracają na listę do ręcznego uzupełnienia.
+    Zwraca liczbę produktów, którym wyczyszczono podpowiedź."""
+    for product in products:
+        product.suggested_manufacturer = None
+        product.suggested_category = None
+        product.suggested_source = None
+
+    session.commit()
+    return len(products)
 
 
 def list_manufacturers(session):
