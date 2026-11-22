@@ -37,10 +37,12 @@ for old_file in glob.glob(os.path.join(EXPORT_DIR, "ai_paczka_*.txt")):
     os.remove(old_file)
 
 batches = chunk(products, batch_size)
+paths = []
 for number, batch in enumerate(batches, start=1):
     path = os.path.join(EXPORT_DIR, f"ai_paczka_{number:02d}.txt")
     with open(path, "w", encoding="utf-8", newline="\n") as file:
         file.write(build_batch_text(categories, batch, number, len(batches)))
+    paths.append(path)
 
 # Numery kategorii w odpowiedzi AI dotyczą listy z chwili eksportu, więc zapisujemy jej kopię
 with open(CATEGORIES_USED_FILE, "w", encoding="utf-8", newline="\n") as file:
@@ -48,8 +50,19 @@ with open(CATEGORIES_USED_FILE, "w", encoding="utf-8", newline="\n") as file:
 
 print(f"Produktów do sklasyfikowania: {len(products)}")
 print(f"Zapisano {len(batches)} paczek w folderze: {EXPORT_DIR}")
+
+# Pierwszą paczkę otwieramy od razu w domyślnym programie (na Windowsie w Notatniku).
+# Pozostałe paczki otwierasz sam, gdy będziesz gotowy na kolejną.
+if hasattr(os, "startfile"):
+    os.startfile(paths[0])
+    print("Otworzyłem pierwszą paczkę. Zaznacz wszystko (Ctrl+A), skopiuj (Ctrl+C) i wklej do czatu z AI.")
+else:
+    print(f"Otwórz pierwszą paczkę: {paths[0]}")
+
 print("\nCo dalej:")
-print("1. Otwórz ai_paczka_01.txt, skopiuj całą zawartość i wklej do czatu z AI.")
+print("1. Skopiuj całą zawartość paczki i wklej do czatu z AI.")
 print("2. Odpowiedź AI zapisz do pliku, np. export/odpowiedz_01.txt (kodowanie UTF-8).")
 print("3. Wczytaj ją poleceniem: python import_ai_answer.py export/odpowiedz_01.txt")
 print("4. Zatwierdź propozycje poleceniem: python approve_ai.py")
+if len(paths) > 1:
+    print(f"5. Pozostałe paczki ({len(paths) - 1}) są w tym samym folderze: kolejne ai_paczka_NN.txt.")
